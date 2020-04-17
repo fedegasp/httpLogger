@@ -26,10 +26,14 @@
 		],
 		"configuration": [
 			{
+				"title": "Http Logger",
 				"properties": {
-					"http-logger.port":true
-				},
-				"title": "Http Logger settings"
+					"http-logger.port": {
+						"type": "integer",
+						"default": 9998,
+						"description": "IP port"
+					}
+				}
 			}
 		]
 	},

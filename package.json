@@ -22,6 +22,10 @@
 			{
 				"command": "http-logger.helloWorld",
 				"title": "Http Logger"
+			},
+			{
+				"command": "http-logger.stop",
+				"title": "Http Logger Stop"
 			}
 		],
 		"configuration": [

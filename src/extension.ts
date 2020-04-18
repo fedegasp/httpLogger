@@ -8,7 +8,7 @@ import proc = require('child_process');
 
 var server: http.Server;
 
-let port = 9998;
+let port = vscode.workspace.getConfiguration().get("http-logger.port") as number;
 let address = publicAddress();
 let myExtDir = vscode.extensions.getExtension("fedegasp.http-logger")?.extensionPath;
 
@@ -132,23 +132,6 @@ function publicAddress(): string | null {
 // your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Setup SSL');
-
-	setupSSL(created => {
-		if (created) {
-			console.log('Starting server');
-			setupServer();
-			let address = publicAddress();
-			var message = `HttpListener on https://${address}:${port}\n`;
-			vscode.window.showInformationMessage(message);
-		}
-		else {
-			vscode.window.showInformationMessage('HttpListener failed to setup SSL.');
-		}
-	})
-
 	// The command has been defined in the package.json file
 	// Now provide the implementation of the command with registerCommand
 	// The commandId parameter must match the command field in package.json
@@ -157,9 +140,36 @@ export function activate(context: vscode.ExtensionContext) {
 
 		// Display a message box to the user
 		vscode.window.showInformationMessage('HttpListener start');
+
+		setupSSL(created => {
+			if (created) {
+				console.log('Starting server');
+				setupServer();
+				let address = publicAddress();
+				var message = `HttpListener on https://${address}:${port}\n`;
+				vscode.window.showInformationMessage(message);
+			}
+			else {
+				vscode.window.showInformationMessage('HttpListener failed to setup SSL.');
+			}
+		});
 	});
 
 	context.subscriptions.push(disposable);
+
+	let stop = vscode.commands.registerCommand('http-logger.stop', () => {
+		vscode.window.showInformationMessage('HttpListener shuting down.');
+		server.close(err => {
+			if (err) {
+				vscode.window.showInformationMessage(err.message);
+			}
+			else {
+				vscode.window.showInformationMessage('HttpListener stopped.');
+			}
+		});
+	});
+
+	context.subscriptions.push(stop);
 }
 
 // this method is called when your extension is deactivated

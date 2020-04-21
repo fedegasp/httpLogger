@@ -8,16 +8,18 @@ import proc = require('child_process');
 
 var server: http.Server;
 
+var logEditor: vscode.TextEditor;
+
+let welcomeMessage = "";
 let port = vscode.workspace.getConfiguration().get("http-logger.port") as number;
 let address = publicAddress();
 let myExtDir = vscode.extensions.getExtension("fedegasp.http-logger")?.extensionPath;
 
 function append(text: string) {
 	console.log(text.substring(0, 40));
-	let editor = vscode.window.activeTextEditor;
-	if (editor) {
-		let pos = new vscode.Position(editor.document.lineCount, 0);
-		editor.edit(edit => {
+	if (logEditor) {
+		let pos = new vscode.Position(logEditor.document.lineCount, 0);
+		logEditor.edit(edit => {
 			edit.insert(pos, `${text}\n`);
 		});
 	}
@@ -141,17 +143,22 @@ export function activate(context: vscode.ExtensionContext) {
 		// Display a message box to the user
 		vscode.window.showInformationMessage('HttpListener start');
 
-		setupSSL(created => {
-			if (created) {
-				console.log('Starting server');
-				setupServer();
-				let address = publicAddress();
-				var message = `HttpListener on https://${address}:${port}\n`;
-				vscode.window.showInformationMessage(message);
-			}
-			else {
-				vscode.window.showInformationMessage('HttpListener failed to setup SSL.');
-			}
+		vscode.workspace.openTextDocument({content: welcomeMessage}).then( (doc) => {
+			vscode.window.showTextDocument(doc).then ( (editor) => {
+				logEditor = editor;
+				setupSSL(created => {
+					if (created) {
+						console.log('Starting server');
+						setupServer();
+						let address = publicAddress();
+						var message = `HttpListener on https://${address}:${port}\n`;
+						vscode.window.showInformationMessage(message);
+					}
+					else {
+						vscode.window.showInformationMessage('HttpListener failed to setup SSL.');
+					}
+				});
+			});
 		});
 	});
 
@@ -170,6 +177,7 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 
 	context.subscriptions.push(stop);
+
 }
 
 // this method is called when your extension is deactivated

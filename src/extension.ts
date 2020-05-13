@@ -2,9 +2,14 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 
-import http = require('https');
+import websocket = require('websocket');
+import http = require('http');
 import fs = require('fs');
 import proc = require('child_process');
+import tqueue = require('typescript-task-queue');
+import {Mutex} from 'await-semaphore';
+
+var wsServer: websocket.server;
 
 var server: http.Server;
 
@@ -15,12 +20,23 @@ let port = vscode.workspace.getConfiguration().get("http-logger.port") as number
 let address = publicAddress();
 let myExtDir = vscode.extensions.getExtension("fedegasp.http-logger")?.extensionPath;
 
+let editorAppendQueue = new tqueue.TaskQueue({ autorun:true });
+let editorMutex = new Mutex();
+
 function append(text: string) {
-	console.log(text.substring(0, 40));
+	console.log(text);
 	if (logEditor) {
-		let pos = new vscode.Position(logEditor.document.lineCount, 0);
-		logEditor.edit(edit => {
-			edit.insert(pos, `${text}\n`);
+		editorAppendQueue.enqueue(async () => {
+			var release = await editorMutex.acquire();
+			var block = async () => {
+				let pos = new vscode.Position(logEditor.selection.active.line, logEditor.selection.active.character);
+				logEditor.edit(edit => {
+					edit.insert(pos, `${text}`);
+				}).then( (ff) => {
+					release();
+				});	
+			};
+			await block();
 		});
 	}
 }
@@ -33,6 +49,7 @@ function setupSSL(callback: (created: boolean) => void) {
 				callback(true);
 			}
 			else {
+				// this is not working on iPhone simulator. A CA should be created and a signed cert released.
 				let firstCommand = `openssl req -new -newkey rsa:4096 -nodes -keyout ${myExtDir}/${address}.pem -out ${myExtDir}/${address}.csr -subj "${subj}"`;
 				let secondCommand = `openssl req -new -newkey rsa:4096 -days 365 -nodes -x509 -subj "${subj}" -keyout ${myExtDir}/${address}.key -out ${myExtDir}/${address}.cert`;
 				proc.exec(firstCommand,
@@ -71,7 +88,7 @@ function setupServer() {
 		cert: fs.readFileSync(`${myExtDir}/${address}.cert`)
 	};
 
-	server = http.createServer(options, (req, res) => {
+	server = http.createServer(/*options,*/ (req, res) => {
 		let body: any[] = [];
 		req.on('error', (err) => {
 			console.log(err);
@@ -107,6 +124,16 @@ function setupServer() {
 	});
 
 	server.listen(port, "0.0.0.0");
+
+	wsServer = new websocket.server({ httpServer: server });
+	wsServer.on('request', (request: websocket.request) => {
+		var connection = request.accept(undefined, request.origin);
+		connection.on('message', (data: websocket.IMessage) => {
+			if (data.type === 'utf8') {
+				append("" + data.utf8Data);
+			}
+		});
+	});
 }
 
 function publicAddress(): string | null {

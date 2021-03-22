@@ -15,9 +15,6 @@
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
-		"configurationDefaults": {
-			"http-logger.port": 9998
-		},
 		"commands": [
 			{
 				"command": "http-logger.helloWorld",

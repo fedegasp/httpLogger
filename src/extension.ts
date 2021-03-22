@@ -3,7 +3,7 @@
 import * as vscode from 'vscode';
 
 import websocket = require('websocket');
-import http = require('http');
+import http = require('https');
 import fs = require('fs');
 import proc = require('child_process');
 import tqueue = require('typescript-task-queue');
@@ -44,37 +44,35 @@ function append(text: string) {
 function setupSSL(callback: (created: boolean) => void) {
 	if (address) {
 		let subj = `/C=IT/ST=Italy/L=Rome/O=Dis/CN=${address}`;
-		fs.exists(`${address}.key`, exists => {
-			if (exists) {
-				callback(true);
-			}
-			else {
-				// this is not working on iPhone simulator. A CA should be created and a signed cert released.
-				let firstCommand = `openssl req -new -newkey rsa:4096 -nodes -keyout ${myExtDir}/${address}.pem -out ${myExtDir}/${address}.csr -subj "${subj}"`;
-				let secondCommand = `openssl req -new -newkey rsa:4096 -days 365 -nodes -x509 -subj "${subj}" -keyout ${myExtDir}/${address}.key -out ${myExtDir}/${address}.cert`;
-				proc.exec(firstCommand,
-					(error: any, stdout: string, stderr: string) => {
-						if (error === null) {
-							console.log(stdout);
-							proc.exec(secondCommand,
-								(error: any, stdout: string, stderr: string) => {
-									if (error === null) {
-										console.log(stdout);
-										callback(true);
-									}
-									else {
-										console.log(stderr);
-										callback(false);
-									}
-								});
-						}
-						else {
-							console.log(stderr);
-							callback(false);
-						}
-					});
-			}
-		});
+		if (fs.existsSync(`${address}.key`)) {
+			callback(true);
+		}
+		else {
+			// this is not working on iPhone simulator. A CA should be created and a signed cert released.
+			let firstCommand = `openssl req -new -newkey rsa:4096 -nodes -keyout ${myExtDir}/${address}.pem -out ${myExtDir}/${address}.csr -subj "${subj}"`;
+			let secondCommand = `openssl req -new -newkey rsa:4096 -days 365 -nodes -x509 -subj "${subj}" -keyout ${myExtDir}/${address}.key -out ${myExtDir}/${address}.cert`;
+			proc.exec(firstCommand,
+				(error: any, stdout: string, stderr: string) => {
+					if (error === null) {
+						console.log(stdout);
+						proc.exec(secondCommand,
+							(error: any, stdout: string, stderr: string) => {
+								if (error === null) {
+									console.log(stdout);
+									callback(true);
+								}
+								else {
+									console.log(stderr);
+									callback(false);
+								}
+							});
+					}
+					else {
+						console.log(stderr);
+						callback(false);
+					}
+				});
+		}
 	}
 	else {
 		console.log('no public interface');
@@ -83,12 +81,13 @@ function setupSSL(callback: (created: boolean) => void) {
 }
 
 function setupServer() {
+	
 	const options = {
 		key: fs.readFileSync(`${myExtDir}/${address}.key`),
 		cert: fs.readFileSync(`${myExtDir}/${address}.cert`)
 	};
 
-	server = http.createServer(/*options,*/ (req, res) => {
+	server = http.createServer(options, (req, res) => {
 		let body: any[] = [];
 		req.on('error', (err) => {
 			console.log(err);
